@@ -42,10 +42,13 @@ var Detail =React.createClass({
     var ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
     return {
       data:data,
+
+      //video标签参数
       rate:1,
       muted:false,
       resizeMode:'contain',
       repeat:false,
+
       playing:false,//播放结束
       videoLoaded:false,//视频加载中动画  加载完毕
       videoProgress:0.01,//进度条
