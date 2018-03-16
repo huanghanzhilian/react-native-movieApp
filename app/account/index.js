@@ -8,6 +8,7 @@ import * as ImagePicker from 'react-native-image-picker';
 var Progress=require('react-native-progress')
 //import * as Progress from 'react-native-progress';
 import  Button from 'react-native-button'
+var uuid=require('uuid')
 
 
 //组件或者工具模块 就是本地项目模块
@@ -233,6 +234,20 @@ var Account =React.createClass({
       </View>
     );
   },
+
+  //获取签名
+  _getQiniuToken(accessToken,key){
+    var signatureUrl=config.api.base+config.api.signature//获取签名的地址
+    return request.post(signatureUrl,{
+      accessToken:accessToken,
+      key:key
+    })
+      .catch((err)=>{
+        console.log('请求签名错误')
+        console.log(err)
+        AlertIOS.alert('请求签名错误')
+      })
+  }
   //选着照片
   _pickPhoto(){
     //console.log(ImagePicker)
@@ -247,48 +262,57 @@ var Account =React.createClass({
       }
       //拿到图像数据
       var avatarData='data:image/jpeg;base64,'+res.data
-      
-      // var user =that.state.user
-      // user.avatar=avatarData
-      // that.setState({
-      //   user:user
-      // })
-
-
-      var timestamp=Date.now()//拿到当前时间戳
-      var tags='app,avatar'//需要加什么样的标签
-      var folder='avatar'//上传的文件夹
-      var signatureUrl=config.api.base+config.api.signature//获取签名的地址
       var accessToken=this.state.user.accessToken//拿到token
 
-      request.post(signatureUrl,{
-        accessToken:accessToken,
-        timestamp:timestamp,
-        type:'avatar'//告诉是什么类型的上传
-      })
-        .catch((err)=>{
-          console.log('请求签名错误')
-          console.log(err)
-          AlertIOS.alert('请求签名错误')
-        })
+      var uri=res.uri
+      var key=uuid.v4()+'.png'
+      that._getQiniuToken(accessToken,key)
         .then((data)=>{
-          console.log(data)
           if(data&&data.success){
-            console.log('请求签名')
-            console.log(data)
-            var signature=data.data
+            var token=data.data
 
             var body=new FormData()
-            body.append('folder',folder)
-            body.append('signature',signature)
-            body.append('tags',tags)
-            body.append('timestamp',timestamp)
-            body.append('api_key',CLOUDINARY.api_key)
-            body.append('resource_type','image')
-            body.append('file',avatarData)
+            body.append('token',token)
+            body.append('file',{
+              type:'image/png',
+              uri:uri,
+              name:key
+            })
             that._upload(body)
           }
         })
+
+      // request.post(signatureUrl,{
+      //   accessToken:accessToken,
+      //   key:key
+      //   timestamp:timestamp,
+      //   type:'avatar'//告诉是什么类型的上传
+      // })
+      //   .catch((err)=>{
+      //     console.log('请求签名错误')
+      //     console.log(err)
+      //     AlertIOS.alert('请求签名错误')
+      //   })
+      //   .then((data)=>{
+      //     console.log(data)
+      //     if(data&&data.success){
+      //       console.log('请求签名')
+      //       console.log(data)
+      //       var signature=data.data
+
+      //       var body=new FormData()
+      //       body.append('folder',folder)
+      //       body.append('signature',signature)
+      //       body.append('tags',tags)
+      //       body.append('timestamp',timestamp)
+      //       body.append('api_key',CLOUDINARY.api_key)
+      //       body.append('resource_type','image')
+      //       body.append('file',avatarData)
+      //       that._upload(body)
+      //     }
+      //   })
+
+
     });
   },
   //上传图片
@@ -384,10 +408,10 @@ var Account =React.createClass({
         console.log('异常')
         console.log(e)
       }
+      console.log(response)
       if(response&&response.public_id){
         var user=this.state.user
         user.avatar=response.public_id
-        console.log(user.avatar)
         that.setState({
           avatarUploading:false,
           avatarProgress:0,
