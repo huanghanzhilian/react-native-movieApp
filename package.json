@@ -21,8 +21,7 @@
 		"react-native-sk-countdown": "^1.0.1",
 		"react-native-vector-icons": "^4.5.0",
 		"react-native-video": "^2.0.0",
-		"sha1": "^1.1.1",
-		"uuid": "^3.2.1"
+		"sha1": "^1.1.1"
 	},
 	"devDependencies": {
 		"babel-jest": "22.4.1",

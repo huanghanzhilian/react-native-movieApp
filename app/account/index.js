@@ -8,7 +8,7 @@ import * as ImagePicker from 'react-native-image-picker';
 var Progress=require('react-native-progress')
 //import * as Progress from 'react-native-progress';
 import  Button from 'react-native-button'
-var uuid=require('uuid')
+
 
 
 //组件或者工具模块 就是本地项目模块
@@ -51,15 +51,7 @@ var photoOptions = {
 };
 
 
-var CLOUDINARY={
-    cloud_name: 'de5fw2yto',
-    api_key: '614579213356478',
-    api_secret: 'kj2K8fxkuQPiVWX8xW6ZeQ08izU',
-    base:"http://res.cloudinary.com/de5fw2yto",//图床地址
-    image:"https://api.cloudinary.com/v1_1/de5fw2yto/image/upload",//上传图片地址
-    video:"https://api.cloudinary.com/v1_1/de5fw2yto/video/upload",//上传视频地址
-    audio:"https://api.cloudinary.com/v1_1/de5fw2yto/audio/upload",//上传图片地址
-  }
+
 
 function avatar(id,type){
   if(id.indexOf('http')>-1){
@@ -68,7 +60,12 @@ function avatar(id,type){
   if(id.indexOf('data:image')>-1){
     return id
   }
-  return CLOUDINARY.base+'/'+type+'/upload/'+id
+  if(id.indexOf('avatar/')>-1){
+    return config.cloudinary.base+'/'+type+'/upload/'+id
+  }
+
+  return 'http://p5oaue0x1.bkt.clouddn.com/'+id
+  
 }
 
 var Account =React.createClass({
@@ -236,18 +233,17 @@ var Account =React.createClass({
   },
 
   //获取签名
-  _getQiniuToken(accessToken,key){
+  _getQiniuToken(){
+    var accessToken=this.state.user.accessToken//拿到token
     var signatureUrl=config.api.base+config.api.signature//获取签名的地址
     return request.post(signatureUrl,{
       accessToken:accessToken,
-      key:key
+      cloud:'qiniu'
     })
       .catch((err)=>{
-        console.log('请求签名错误')
         console.log(err)
-        AlertIOS.alert('请求签名错误')
       })
-  }
+  },
   //选着照片
   _pickPhoto(){
     //console.log(ImagePicker)
@@ -262,17 +258,18 @@ var Account =React.createClass({
       }
       //拿到图像数据
       var avatarData='data:image/jpeg;base64,'+res.data
-      var accessToken=this.state.user.accessToken//拿到token
 
       var uri=res.uri
-      var key=uuid.v4()+'.png'
-      that._getQiniuToken(accessToken,key)
+      that._getQiniuToken()
         .then((data)=>{
+          console.log(data)
           if(data&&data.success){
-            var token=data.data
+            var token=data.data.token
+            var key=data.data.key
 
             var body=new FormData()
             body.append('token',token)
+            body.append('key',key)
             body.append('file',{
               type:'image/png',
               uri:uri,
@@ -305,7 +302,7 @@ var Account =React.createClass({
       //       body.append('signature',signature)
       //       body.append('tags',tags)
       //       body.append('timestamp',timestamp)
-      //       body.append('api_key',CLOUDINARY.api_key)
+      //       body.append('api_key',config.cloudinary.api_key)
       //       body.append('resource_type','image')
       //       body.append('file',avatarData)
       //       that._upload(body)
@@ -317,75 +314,15 @@ var Account =React.createClass({
   },
   //上传图片
   _upload(body){
+    console.log(body)
     var that=this
     this.setState({
       avatarUploading:true,
       avatarProgress:0
     })
-    // new Promise((resolve, reject)=>{
-    //   if(!this.validatePass){
-    //       reject();
-    //   }else{
-    //       resolve();
-    //   }
-    // }).then((res)=>{
-    //      console.log('ok');
-    //   });
-    
-
-    // return new Promise((resolve, reject)=>{
-    //   var xhr=new XMLHttpRequest()
-    //   var url=CLOUDINARY.image
-    
-    //   xhr.open('POST',url)
-
-    //   xhr.onload=()=>{
-    //     if(xhr.status!==200){
-    //       //AlertIOS.alert('请求失败')
-    //       //console.log(xhr.responseText)
-    //       //return
-    //       reject(new Error(xhr.responseText));  
-    //     }
-    //     //返回的空值或者
-    //     if(!xhr.responseText){
-    //       //AlertIOS.alert('请求失败')
-    //       //return
-    //       reject(new Error(xhr.responseText));  
-    //     }
-    //     var response
-    //     try{
-    //       response=JSON.parse(xhr.response)
-    //     }
-    //     catch(e){
-    //       reject(e)
-    //       console.log('异常')
-    //       console.log(e)
-    //     }
-    //     if(response&&response.public_id){
-    //       resolve(response); 
-    //       // var user=this.state.user
-    //       // user.avatar=avatar(response.public_id,'image')
-    //       // that.setState({
-    //       //   user:user
-    //       // })
-    //     }
-    //   }
-
-    //   // 执行请求
-    //   xhr.send(body)
-
-    //   if(!this.validatePass){
-    //       reject();
-    //   }else{
-    //       resolve();
-    //   }
-    // }).then((res)=>{
-    //      console.log('ok');
-    //   });
-
 
     var xhr=new XMLHttpRequest()
-    var url=CLOUDINARY.image
+    var url=config.qiniu.upload
     
     xhr.open('POST',url)
     //请求结束
@@ -409,9 +346,9 @@ var Account =React.createClass({
         console.log(e)
       }
       console.log(response)
-      if(response&&response.public_id){
+      if(response&&response.key){
         var user=this.state.user
-        user.avatar=response.public_id
+        user.avatar=response.key
         that.setState({
           avatarUploading:false,
           avatarProgress:0,
@@ -434,9 +371,6 @@ var Account =React.createClass({
         }
       }
     }
-
-
-
     //执行请求
     xhr.send(body)
   },
