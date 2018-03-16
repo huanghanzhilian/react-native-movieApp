@@ -33,7 +33,7 @@ import {
 var test5App =React.createClass({
   getInitialState: function() {
     return {
-      selectedTab:'account',//list
+      selectedTab:'edit',//list
       logined:false,//是否登录
       user:null,//用户信息
     };

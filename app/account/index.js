@@ -72,7 +72,6 @@ var Account =React.createClass({
   //初始状态时，通过属性状态
   getInitialState: function() {
     var user=this.props.user||{}
-    console.log(ImagePicker)
     return {
        user:user,
        avatarProgress:0,//上传头像进度
