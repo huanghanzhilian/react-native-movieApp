@@ -234,7 +234,8 @@ var Edit =React.createClass({
           video:response
         })
         var videoURL=config.api.base+config.api.video
-        var accessToken=that.state.accessToken
+        var accessToken=that.state.user.accessToken
+
         request.post(videoURL,{
           accessToken:accessToken,
           video:response
@@ -244,6 +245,7 @@ var Edit =React.createClass({
           AlertIOS.alert('视频同步出错，请重新上传！')
         })
         .then((data)=>{
+          console.log(data)
           if(!data||!data.success){
             AlertIOS.alert('视频同步出错，请重新上传！')
           }
