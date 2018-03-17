@@ -3,6 +3,9 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import  Video from 'react-native-video'
 var CountDownText= require('../common/CountDownText')
 import * as ImagePicker from 'react-native-image-picker';
+import {AudioRecorder, AudioUtils} from 'react-native-audio'
+import Sound from 'react-native-sound';
+
 
 //组件或者工具模块 就是本地项目模块
 var request=require('../common/request')
@@ -19,8 +22,8 @@ import {
   Dimensions,
   AsyncStorage,
   AlertIOS,
-  ProgressViewIOS
-
+  ProgressViewIOS,
+  Platform
 } from 'react-native';
 
 var width=Dimensions.get('window').width//获取屏幕宽度
@@ -76,8 +79,23 @@ var Edit =React.createClass({
       counting:false,//是否进入正在计数
       recording:false,//是否正在录音
 
+
+      //audio
+      audioName:AudioUtils.DocumentDirectoryPath + 'gougou.aac',
+      audioPlaying:false,//是否正在播放中
+      recordDone:false//
     }
   },
+  prepareRecordingPath(audioPath){
+    AudioRecorder.prepareRecordingAtPath(audioPath, {
+      SampleRate: 22050,
+      Channels: 1,
+      AudioQuality: "Low",
+      AudioEncoding: "aac",
+      AudioEncodingBitRate: 32000
+    });
+  },
+ 
   //安装过  3
   componentDidMount(){
     var that=this
@@ -95,6 +113,9 @@ var Edit =React.createClass({
           })
         }
       })   
+
+    //对音频进行初始化
+    this._initAudio()
   },
   render: function() {
     return (
@@ -142,11 +163,30 @@ var Edit =React.createClass({
                 }
                 {
                   //如果正在录音
-                  this.state.recording
+                  this.state.recording||this.state.audioPlaying
                   ?<View style={styles.progressTipBox}>
                     <ProgressViewIOS style={styles.progressBar} progressTintColor='#ee735c'
                     progress={this.state.videoProgress} />
-                    <Text style={styles.progressTip}>录制声音中</Text>
+                    {
+                      this.state.recording
+                      ?<Text style={styles.progressTip}>录制声音中</Text>
+                      :null
+                    }
+                  </View>
+                  :null
+                }
+                {
+                  //录音完成后 可播放区域
+                  //recorDone 录制结束
+                  this.state.recordDone
+                  ?<View style={styles.previewBox}>
+                    <Icon
+                      name='ios-play'
+                      style={styles.previewIcon}
+                      size={48}
+                      onPress={this._preview}
+                    />
+                    <Text style={styles.previewText} onPress={this._preview}>预览</Text>
                   </View>
                   :null
                 }
@@ -173,7 +213,7 @@ var Edit =React.createClass({
                     countType='seconds' // 计时类型：seconds / date
                     auto={true} // 自动开始
                     afterEnd={this._record} // 结束回调
-                    timeLeft={8} // 正向计时 时间起点为0秒
+                    timeLeft={2} // 正向计时 时间起点为0秒
                     step={-1} // 计时步长，以秒为单位，正数则为正计时，负数为倒计时
                     startText='准备录制' // 开始的文本
                     endText='Go' // 结束的文本
@@ -198,13 +238,75 @@ var Edit =React.createClass({
       </View>
     );
   },
+  //对音频进行初始化
+  _initAudio(){    
+    this.prepareRecordingPath(this.state.audioName);
+    
+    AudioRecorder.onProgress = (data) => {
+      this.setState({currentTime: Math.floor(data.currentTime)});
+    };
+    AudioRecorder.onFinished = (data) => {
+      this.setState({finished: data.finished});
+      console.log(`Finished recording: ${data.finished}`);
+    };
+  },
+  //录制音频播放
+  _preview(){
+    console.log('播放音频视频')
+    
+    
+    //播放音频 
+    setTimeout(() => {
+      var sound = new Sound(this.state.audioName, '', (error) => {
+        if (error) {
+          console.log('failed to load the sound', error);
+        }
+      });
+
+
+      setTimeout(() => {
+        if(this.state.audioPlaying){
+          //音频不再播放
+          sound.stop((success) => {
+            if (success) {
+              console.log('播放音频成功');
+            } else {
+              console.log('播放音频失败');
+            }
+          });
+        }
+        this.refs.videoPlayer.seek(0)//将视频从头开始播放
+        this.setState({
+          videoProgress:0,
+          audioPlaying:true
+        })
+        sound.play((success) => {
+          if (success) {
+            console.log('播放音频成功');
+          } else {
+            console.log('播放音频失败');
+          }
+        });
+      }, 100);
+    }, 100);
+
+    
+  },
   //倒计时结束  开始录音
-  _record(){
+  async _record(){
     this.setState({
       videoProgress:0,
       counting:false,
-      recording:true
+      recording:true,
+      recordDone:false
     })
+
+    const filePath = await AudioRecorder.startRecording();
+    setTimeout(()=>{
+      console.log(filePath)
+    })
+    
+    // AudioRecorder.startRecording()//开启录音
     //通过refs来引用到某一个组件
     this.refs.videoPlayer.seek(0)//将视频从头开始播放
   },
@@ -240,6 +342,7 @@ var Edit =React.createClass({
       currentTime:Number(data.currentTime.toFixed(2)),
       videoProgress:precent
     }
+
     if(this.state.recording){
       this.setState(newState)
     }
@@ -249,11 +352,15 @@ var Edit =React.createClass({
 
 
   //播放结束
-  _onEnd(){
+  async _onEnd(){
     if(this.state.recording){
+      //AudioRecorder.stopRecording()//结束录音
+      const filePath = await AudioRecorder.stopRecording();
+      console.log(filePath)
       this.setState({
         videoProgress:1,
-        recording:false
+        recording:false,
+        recordDone:true
       })
     }
     console.log('播放结束')
@@ -540,6 +647,30 @@ var styles = StyleSheet.create({
     backgroundColor:'#ccc'
   },
   /*录音环节e*/
+  /*录制完音频预览区域 s */
+  previewBox:{
+    width:80,
+    height:30,
+    position:'absolute',
+    right:10,
+    bottom:10,
+    borderColor:'#ee735c',
+    borderWidth:1,
+    borderRadius:3,
+    flexDirection:'row',
+    justifyContent:'center',
+    alignItems:'center'
+  },
+  previewIcon:{
+    marginRight:5,
+    fontSize:20,
+    color:'#ee735c'
+  },
+  previewText:{
+    fontSize:20,
+    color:'#ee735c'
+  },
+  /*录制完音频预览区域 e */
 });
 
 module.exports=Edit
