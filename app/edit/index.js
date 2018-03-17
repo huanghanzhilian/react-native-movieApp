@@ -233,6 +233,22 @@ var Edit =React.createClass({
           videoUploaded:true,
           video:response
         })
+        var videoURL=config.api.base+config.api.video
+        var accessToken=that.state.accessToken
+        request.post(videoURL,{
+          accessToken:accessToken,
+          video:response
+        })
+        .catch((err)=>{
+          console.log(err)
+          AlertIOS.alert('视频同步出错，请重新上传！')
+        })
+        .then((data)=>{
+          if(!data||!data.success){
+            AlertIOS.alert('视频同步出错，请重新上传！')
+          }
+        })
+
       }
     }
 

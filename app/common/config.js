@@ -22,6 +22,7 @@ module.exports={
 		verify:'api/u/verify',
 		signature:'api/signature',//获取上传图片签名地址
 		update:'api/u/update',//更新用户资料
+		video:'api/creations/video'//视频上传同步后台
 	},
 	qiniu:{
 		//upload:'http://upload.qiniu.com/'
