@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
-var Icon=require('react-native-vector-icons/Ionicons');
+import Icon from 'react-native-vector-icons/Ionicons';
 import  Video from 'react-native-video'
+var CountDownText= require('../common/CountDownText')
 import * as ImagePicker from 'react-native-image-picker';
 
 //组件或者工具模块 就是本地项目模块
@@ -56,18 +57,24 @@ var Edit =React.createClass({
       resizeMode:'contain',
       repeat:false,
 
-      playing:false,//播放结束
-      videoLoaded:false,//视频加载中动画  加载完毕
+
+      //视频播放相关
       videoProgress:0.01,//进度条
       videoTotal:0,//视频整个时间
       currentTime:0,//当前时间
-      paused:false,//是否暂停
+
+
 
       //视频上传参数
       video:null,
       videoUploading:false,//是否正在上传中
       videoUploaded:false,//是否上传成功
       videoUploadedProgress:0,//视频上传进度
+
+
+      //count down
+      counting:false,//是否进入正在计数
+      recording:false,//是否正在录音
 
     }
   },
@@ -133,6 +140,16 @@ var Edit =React.createClass({
                   </View>
                   :null
                 }
+                {
+                  //如果正在录音
+                  this.state.recording
+                  ?<View style={styles.progressTipBox}>
+                    <ProgressViewIOS style={styles.progressBar} progressTintColor='#ee735c'
+                    progress={this.state.videoProgress} />
+                    <Text style={styles.progressTip}>录制声音中</Text>
+                  </View>
+                  :null
+                }
               </View>
             </View>
             :<TouchableOpacity style={styles.uploadContainer} onPress={this._pickVideo}>
@@ -143,11 +160,126 @@ var Edit =React.createClass({
               </View>  
             </TouchableOpacity>
           }
+
+
+          {
+            this.state.videoUploaded
+            ?<View style={styles.recordBox}>
+              <View style={[styles.recordIconBox,this.state.recording &&styles.recordOn]}>
+                {
+                  this.state.counting&&!this.state.recording
+                  ?<CountDownText
+                    style={styles.countBtn}
+                    countType='seconds' // 计时类型：seconds / date
+                    auto={true} // 自动开始
+                    afterEnd={this._record} // 结束回调
+                    timeLeft={8} // 正向计时 时间起点为0秒
+                    step={-1} // 计时步长，以秒为单位，正数则为正计时，负数为倒计时
+                    startText='准备录制' // 开始的文本
+                    endText='Go' // 结束的文本
+                    intervalText={(sec) => { 
+                      return sec===0?'Go':sec
+                    }} // 定时的文本回调
+                  />
+                  :<TouchableOpacity onPress={this._counting}>
+                    <Icon name='ios-mic' style={styles.recordIcon} />
+                  </TouchableOpacity>
+                }
+                  
+                  
+              </View>
+            </View>
+            :null
+          }
+            
+
         </View>
         <View style={styles.toolbar}></View>
       </View>
     );
   },
+  //倒计时结束  开始录音
+  _record(){
+    this.setState({
+      videoProgress:0,
+      counting:false,
+      recording:true
+    })
+    //通过refs来引用到某一个组件
+    this.refs.videoPlayer.seek(0)//将视频从头开始播放
+  },
+  //启动倒计时  
+  _counting(){
+    //没有进入倒计时和没有录音 将开始倒计时
+    if(!this.state.counting&&!this.state.recording){
+      this.setState({
+        counting:true
+      })
+      //this.refs.videoPlayer.seek(this.state.videoTotal-0.01)//将视频进度调整到最后几毫秒
+    } 
+  },
+
+  //当视频开始加载那一刹那来调用
+  _onLoadStart(){
+    console.log('当视频开始加载那一刹那来调用')
+  },
+
+  //当视频在不断地加载 会不断地来触发
+  _onLoad(){
+    console.log('当视频在不断地加载 会不断地来触发')
+  }, 
+
+  //当视频在播放时的时候每隔250毫秒会来调用一下
+  _onProgress(data){
+    var duration=data.seekableDuration;
+    var currentTime=data.currentTime;
+    var precent=Number((currentTime/duration).toFixed(2));//比例
+    
+    var newState={
+      videoTotal:duration,
+      currentTime:Number(data.currentTime.toFixed(2)),
+      videoProgress:precent
+    }
+    if(this.state.recording){
+      this.setState(newState)
+    }
+    //this.setState(newState)
+    //console.log('当视频在播放时的时候每隔250毫秒会来调用一下')
+  },
+
+
+  //播放结束
+  _onEnd(){
+    if(this.state.recording){
+      this.setState({
+        videoProgress:1,
+        recording:false
+      })
+    }
+    console.log('播放结束')
+  },
+
+  //视频出错的时候
+  _onError(e){
+    this.setState({
+      videoOk:false
+    })
+    console.log(e)
+    console.log('视频出错的时候')
+  },
+
+  //开始播放按钮
+  _resume(){
+    if(this.state.paused){
+      this.setState({
+        paused:false
+      })
+    } 
+  },
+
+
+
+
   //选着视频
   _pickVideo(){
     var that=this;
@@ -271,48 +403,7 @@ var Edit =React.createClass({
   },
 
 
-  //当视频开始加载那一刹那来调用
-  _onLoadStart(){
-    console.log('当视频开始加载那一刹那来调用')
-  },
-
-  //当视频在不断地加载 会不断地来触发
-  _onLoad(){
-    console.log('当视频在不断地加载 会不断地来触发')
-  }, 
-
-  //当视频在播放时的时候每隔250毫秒会来调用一下
-  _onProgress(data){
-    //console.log('当视频在播放时的时候每隔250毫秒会来调用一下')
-  },
-
-
-  //播放结束
-  _onEnd(){
-    this.setState({
-      videoProgress:1,
-      playing:false
-    })
-    console.log('播放结束')
-  },
-
-  //视频出错的时候
-  _onError(e){
-    this.setState({
-      videoOk:false
-    })
-    console.log(e)
-    console.log('视频出错的时候')
-  },
-
-  //开始播放按钮
-  _resume(){
-    if(this.state.paused){
-      this.setState({
-        paused:false
-      })
-    } 
-  },
+  
 
 
 
@@ -418,6 +509,37 @@ var styles = StyleSheet.create({
     padding:5
   },
   /*视频上传区域 e */
+  /*录音环节s*/
+  recordBox:{
+    width:width,
+    height:60,
+    alignItems:'center'
+  },
+  recordIconBox:{
+    width:68,
+    height:68,
+    marginTop:-30,
+    borderRadius:34,
+    backgroundColor:'#ee735c',
+    borderWidth:1,
+    borderColor:'#fff',
+    alignItems:'center',
+    justifyContent:'center',
+  },
+  countBtn:{
+    fontSize:32,
+    fontWeight:'600',
+    color:'#fff'
+  },
+  recordIcon:{
+    fontSize:58,
+    backgroundColor:'transparent',
+    color:'#fff'
+  },
+  recordOn:{
+    backgroundColor:'#ccc'
+  },
+  /*录音环节e*/
 });
 
 module.exports=Edit
