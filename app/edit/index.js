@@ -3,6 +3,9 @@ var Icon=require('react-native-vector-icons/Ionicons');
 import  Video from 'react-native-video'
 import * as ImagePicker from 'react-native-image-picker';
 
+//组件或者工具模块 就是本地项目模块
+var request=require('../common/request')
+var config=require('../common/config');
 
 import {
   TabBarIOS,
@@ -12,7 +15,11 @@ import {
   View,
   TouchableOpacity,
   Image,
-  Dimensions
+  Dimensions,
+  AsyncStorage,
+  AlertIOS,
+  ProgressViewIOS
+
 } from 'react-native';
 
 var width=Dimensions.get('window').width//获取屏幕宽度
@@ -37,8 +44,10 @@ var videoOptions = {
 var Edit =React.createClass({
   //初始状态时，通过属性状态
   getInitialState: function() {
-    //var user=this.props.user||{}
+    var user=this.props.user||{}
     return {
+      user:user,
+
       previeVideo:null,//是否选择视频
 
       //video标签参数
@@ -55,8 +64,30 @@ var Edit =React.createClass({
       paused:false,//是否暂停
       videoOk:true,//视频是否出错
 
+      //视频上传参数
+      videoUploading:false,//是否正在上传中
+      videoUploaded:false,//是否上传成功
+      videoUploadedProgress:0,//视频上传进度
 
     }
+  },
+  //安装过  3
+  componentDidMount(){
+    var that=this
+    AsyncStorage.getItem('user')
+      .then((data)=>{
+        var user
+
+        if(data){
+          //转成json
+          user=JSON.parse(data)
+        }
+        if(user&&user.accessToken){
+          this.setState({
+            user:user
+          })
+        }
+      })   
   },
   render: function() {
     return (
@@ -87,7 +118,16 @@ var Edit =React.createClass({
                   onProgress={this._onProgress}
                   onEnd={this._onEnd}
                   onError={this._onError}
-                />
+                /> 
+                {
+                  !this.state.videoUploaded&&this.state.videoUploading
+                  ?<View style={styles.progressTipBox}>
+                    <ProgressViewIOS style={styles.progressBar} progressTintColor='#ee735c'
+                    progress={this.state.videoUploadedProgress} />
+                    <Text style={styles.progressTip}>正在生成静音视频，已完成{(this.state.videoUploadedProgress*100).toFixed(2)}%</Text>
+                  </View>
+                  :null
+                }
               </View>
             </View>
             :<TouchableOpacity style={styles.uploadContainer} onPress={this._pickVideo}>
@@ -115,27 +155,97 @@ var Edit =React.createClass({
       that.setState({
         previeVideo:uri
       })
-      // that._getQiniuToken()
-      //   .then((data)=>{
-      //     console.log(data)
-      //     if(data&&data.success){
-      //       var token=data.data.token
-      //       var key=data.data.key
+      that._getQiniuToken()
+        .then((data)=>{
+          if(data&&data.success){
+            var token=data.data.token
+            var key=data.data.key
 
-      //       var body=new FormData()
-      //       body.append('token',token)
-      //       body.append('key',key)
-      //       body.append('file',{
-      //         type:'image/png',
-      //         uri:uri,
-      //         name:key
-      //       })
-      //       that._upload(body)
-      //     }
-      //   })
+            var body=new FormData()
+            body.append('token',token)
+            body.append('key',key)
+            body.append('file',{
+              type:'video/mp4',
+              uri:uri,
+              name:key
+            })
+            that._upload(body)
+          }
+        })
   
     });
   },
+  //获取签名
+  _getQiniuToken(){
+    var accessToken=this.state.user.accessToken//拿到token
+    var signatureUrl=config.api.base+config.api.signature//获取签名的地址
+    return request.post(signatureUrl,{
+      accessToken:accessToken,
+      cloud:'qiniu'
+    })
+      .catch((err)=>{
+        console.log(err)
+      })
+  },
+  //上传视频
+  _upload(body){
+    var that=this
+    this.setState({
+      videoUploadedProgress:0,
+      videoUploading:true,//正在上传
+      videoUploaded:false//
+    })
+
+    var xhr=new XMLHttpRequest()
+    var url=config.qiniu.upload
+    
+    xhr.open('POST',url)
+    //请求结束
+    xhr.onload=()=>{
+      if(xhr.status!==200){
+        AlertIOS.alert('请求失败')
+        console.log(xhr.responseText)
+        return
+      }
+      //返回的空值或者
+      if(!xhr.responseText){
+        AlertIOS.alert('请求失败')
+        return
+      }
+      var response
+      try{
+        response=JSON.parse(xhr.response)
+      }
+      catch(e){
+        console.log('异常')
+        console.log(e)
+      }
+      console.log(response)
+      if(response&&response.key){
+        that.setState({
+          videoUploading:false,
+          videoUploaded:true,
+          video:response
+        })
+      }
+    }
+
+    //上传状态
+    if(xhr.upload){
+      xhr.upload.onprogress=(event)=>{
+        if(event.lengthComputable){
+          var percent=Number((event.loaded/event.total).toFixed(2))
+          console.log(percent)
+          that.setState({
+            videoUploadedProgress:percent
+          })
+        }
+      }
+    }
+    //执行请求
+    xhr.send(body)
+  },
+
 
   //当视频开始加载那一刹那来调用
   _onLoadStart(){
@@ -292,7 +402,23 @@ var styles = StyleSheet.create({
     width:width,
     height:height*0.6,
     backgroundColor:'#333'
-  }
+  },
+  progressTipBox:{
+    position:'absolute',
+    left:0,
+    bottom:0,
+    width:width,
+    height:30,
+    backgroundColor:'rgba(244,244,244,0.65)'
+  },
+  progressBar:{
+    width:width
+  },
+  progressTip:{
+    color:'#333',
+    width:width-10,
+    padding:5
+  },
   /*视频上传区域 e */
 });
 
