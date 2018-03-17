@@ -62,9 +62,9 @@ var Edit =React.createClass({
       videoTotal:0,//视频整个时间
       currentTime:0,//当前时间
       paused:false,//是否暂停
-      videoOk:true,//视频是否出错
 
       //视频上传参数
+      video:null,
       videoUploading:false,//是否正在上传中
       videoUploaded:false,//是否上传成功
       videoUploadedProgress:0,//视频上传进度
@@ -96,7 +96,12 @@ var Edit =React.createClass({
           <Text style={styles.toolbarTitle}>
             {this.state.previeVideo?'点击按钮配音':'理解狗狗从配音开始'}
           </Text>
-          <Text onPress={this._pickVideo} style={styles.toolbarExtra}>更换视频</Text>
+          {
+            this.state.previeVideo&&this.state.videoUploaded
+            ?<Text onPress={this._pickVideo} style={styles.toolbarExtra}>更换视频</Text>
+            :null
+          }
+          
         </View>
         <View style={styles.page}>
           {
@@ -181,6 +186,7 @@ var Edit =React.createClass({
     var signatureUrl=config.api.base+config.api.signature//获取签名的地址
     return request.post(signatureUrl,{
       accessToken:accessToken,
+      type:'video',
       cloud:'qiniu'
     })
       .catch((err)=>{
@@ -259,32 +265,6 @@ var Edit =React.createClass({
 
   //当视频在播放时的时候每隔250毫秒会来调用一下
   _onProgress(data){
-    if(!this.state.videoLoaded){
-      this.setState({
-        videoLoaded:true
-      })
-    }
-
-    var duration=data.seekableDuration;
-    var currentTime=data.currentTime;
-    var precent=Number((currentTime/duration).toFixed(2));//比例
-    
-    var newState={
-      videoTotal:duration,
-      currentTime:Number(data.currentTime.toFixed(2)),
-      videoProgress:precent
-    }
-
-    if(!this.state.videoLoaded){
-      newState.videoLoaded=true
-    }
-    if(!this.state.playing){
-      newState.playing=true
-    }
-
-    this.setState(newState)
-
-    console.log(data)
     //console.log('当视频在播放时的时候每隔250毫秒会来调用一下')
   },
 

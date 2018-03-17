@@ -237,6 +237,7 @@ var Account =React.createClass({
     var signatureUrl=config.api.base+config.api.signature//获取签名的地址
     return request.post(signatureUrl,{
       accessToken:accessToken,
+      type:'avatar',
       cloud:'qiniu'
     })
       .catch((err)=>{
