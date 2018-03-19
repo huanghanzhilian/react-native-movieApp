@@ -5,6 +5,7 @@ var CountDownText= require('../common/CountDownText')
 import * as ImagePicker from 'react-native-image-picker';
 import {AudioRecorder, AudioUtils} from 'react-native-audio'
 import Sound from 'react-native-sound';
+var _=require('lodash')
 
 
 //组件或者工具模块 就是本地项目模块
@@ -44,47 +45,47 @@ var videoOptions = {
     path: 'images'
   }
 };  
+var defaultState={
+  previeVideo:null,//是否选择视频
 
+  //video标签参数
+  rate:1,
+  muted:true,//是否静音
+  resizeMode:'contain',
+  repeat:false,
+
+
+  //视频播放相关
+  videoProgress:0.01,//进度条
+  videoTotal:0,//视频整个时间
+  currentTime:0,//当前时间
+
+
+
+  //视频上传参数
+  video:null,
+  videoUploading:false,//是否正在上传中
+  videoUploaded:false,//是否上传成功
+  videoUploadedProgress:0,//视频上传进度
+
+
+  //count down
+  counting:false,//是否进入正在计数
+  recording:false,//是否正在录音
+
+
+  //audio
+  audioName:AudioUtils.DocumentDirectoryPath + '/gougou.aac',
+  audioPlaying:false,//是否正在播放中
+  recordDone:false//
+}
 var Edit =React.createClass({
   //初始状态时，通过属性状态
   getInitialState: function() {
     var user=this.props.user||{}
-    return {
-      user:user,
-
-      previeVideo:null,//是否选择视频
-
-      //video标签参数
-      rate:1,
-      muted:true,//是否静音
-      resizeMode:'contain',
-      repeat:false,
-
-
-      //视频播放相关
-      videoProgress:0.01,//进度条
-      videoTotal:0,//视频整个时间
-      currentTime:0,//当前时间
-
-
-
-      //视频上传参数
-      video:null,
-      videoUploading:false,//是否正在上传中
-      videoUploaded:false,//是否上传成功
-      videoUploadedProgress:0,//视频上传进度
-
-
-      //count down
-      counting:false,//是否进入正在计数
-      recording:false,//是否正在录音
-
-
-      //audio
-      audioName:AudioUtils.DocumentDirectoryPath + 'gougou.aac',
-      audioPlaying:false,//是否正在播放中
-      recordDone:false//
-    }
+    var state=_.clone(defaultState)
+    state.user=user
+    return state
   },
   prepareRecordingPath(audioPath){
     AudioRecorder.prepareRecordingAtPath(audioPath, {
@@ -205,7 +206,7 @@ var Edit =React.createClass({
           {
             this.state.videoUploaded
             ?<View style={styles.recordBox}>
-              <View style={[styles.recordIconBox,this.state.recording &&styles.recordOn]}>
+              <View style={[styles.recordIconBox,(this.state.recording ||this.state.audioPlaying)&&styles.recordOn]}>
                 {
                   this.state.counting&&!this.state.recording
                   ?<CountDownText
@@ -262,6 +263,7 @@ var Edit =React.createClass({
           console.log('failed to load the sound', error);
         }
       });
+      console.log(this.state.audioName)
 
 
       setTimeout(() => {
@@ -313,7 +315,7 @@ var Edit =React.createClass({
   //启动倒计时  
   _counting(){
     //没有进入倒计时和没有录音 将开始倒计时
-    if(!this.state.counting&&!this.state.recording){
+    if(!this.state.counting&&!this.state.recording&&!this.state.audioPlaying){
       this.setState({
         counting:true
       })
@@ -395,10 +397,11 @@ var Edit =React.createClass({
       if (res.didCancel) {
         return
       }
+      var state=_.clone(defaultState)
+      state.previeVideo=res.uri
+      state.user=this.state.user
       var uri=res.uri
-      that.setState({
-        previeVideo:uri
-      })
+      that.setState(state)
       that._getQiniuToken()
         .then((data)=>{
           if(data&&data.success){

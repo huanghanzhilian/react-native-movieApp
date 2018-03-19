@@ -9,7 +9,7 @@ module.exports={
 		}
 	},
 	api:{
-		//base:'http://192.168.0.104:1234/',
+		//base:'http://192.168.0.103:1234/',
 		base:'http://localhost:1234/',
 		// base:'http://rapapi.org/mockjs/31802/',
 		//base:'http://localhost:3006/',
