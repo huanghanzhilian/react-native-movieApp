@@ -5,6 +5,7 @@ var CountDownText= require('../common/CountDownText')
 import * as ImagePicker from 'react-native-image-picker';
 import {AudioRecorder, AudioUtils} from 'react-native-audio'
 import Sound from 'react-native-sound';
+var Progress=require('react-native-progress')
 var _=require('lodash')
 
 
@@ -77,7 +78,11 @@ var defaultState={
   //audio
   audioName:AudioUtils.DocumentDirectoryPath + '/gougou.aac',
   audioPlaying:false,//是否正在播放中
-  recordDone:false//
+  recordDone:false,//
+
+  audioUploading:false,//音频是否正在上传中
+  audioUploaded:false,//音频是否上传成功
+  audioUploadedProgress:0.13,//音频上传进度
 }
 var Edit =React.createClass({
   //初始状态时，通过属性状态
@@ -233,7 +238,29 @@ var Edit =React.createClass({
             :null
           }
             
-
+          {
+            //视频上传结束同时录音结束
+            this.state.videoUploaded&&this.state.recorDone
+            ?<View style={styles.uploadAudioBox}>
+              {
+                //当音频正在上传中或者音频已经上传结束
+                !this.state.audioUploaded&&!this.state.audioUploading
+                ?<Text style={styles.uploadAudioText} onPress={this._uploadAudio}>下一步</Text>
+                :null
+              }
+              {
+                //音频上传
+                this.state.audioUploading
+                ?<Progress.Circle 
+                  showsText={true}
+                  color={'#ee735c'}
+                  progress={this.state.audioUploadedProgress}
+                  size={60} />
+                :null
+              }
+            </View>
+            :null
+          }
         </View>
         <View style={styles.toolbar}></View>
       </View>
@@ -271,9 +298,9 @@ var Edit =React.createClass({
           //音频不再播放
           sound.stop((success) => {
             if (success) {
-              console.log('播放音频成功');
+              console.log('停止播放音频');
             } else {
-              console.log('播放音频失败');
+              console.log('停止播放音频失败');
             }
           });
         }
@@ -312,7 +339,7 @@ var Edit =React.createClass({
     //通过refs来引用到某一个组件
     this.refs.videoPlayer.seek(0)//将视频从头开始播放
   },
-  //启动倒计时  
+  //启动倒计时  启动录音
   _counting(){
     //没有进入倒计时和没有录音 将开始倒计时
     if(!this.state.counting&&!this.state.recording&&!this.state.audioPlaying){
@@ -358,11 +385,10 @@ var Edit =React.createClass({
     if(this.state.recording){
       //AudioRecorder.stopRecording()//结束录音
       const filePath = await AudioRecorder.stopRecording();
-      console.log(filePath)
       this.setState({
         videoProgress:1,
         recording:false,
-        recordDone:true
+        recordDone:true,
       })
     }
     console.log('播放结束')
@@ -387,7 +413,44 @@ var Edit =React.createClass({
   },
 
 
+  //上传音频
+  _uploadAudio(){
+    var that=this
+    that._getToken({
+      type:'audio',
+      timestamp:Date.now(),
+      cloud:'cloudinary'
+    })
+    .catch((err)=>{
+      AlertIOS.alert('请求签名错误')
+    })
+    .then((data)=>{
+      console.log(data)
+      if(data&&data.success){
+        var signature=data.data.token
+        var key=data.data.key
+        var body=new FormData()
 
+        body.append('folder',folder)
+        body.append('signature',signature)
+        body.append('tags',tags)
+        body.append('timestamp',timestamp)
+        body.append('api_key',config.cloudinary.api_key)
+        body.append('resource_type','video')
+        body.append('file',{
+          type:'video/mp4',
+          uri:that.state.audioPath,
+          name:key
+        })
+
+        that._upload(body)
+      }
+    })
+
+
+
+
+  }
 
   //选着视频
   _pickVideo(){
@@ -402,7 +465,14 @@ var Edit =React.createClass({
       state.user=this.state.user
       var uri=res.uri
       that.setState(state)
-      that._getQiniuToken()
+      that._getToken({
+        type:'video',
+        cloud:'qiniu'
+      })
+        .catch((err)=>{
+          AlertIOS.alert('上传出错！')
+          console.log(err)
+        })
         .then((data)=>{
           if(data&&data.success){
             var token=data.data.token
@@ -422,18 +492,13 @@ var Edit =React.createClass({
   
     });
   },
-  //获取签名
-  _getQiniuToken(){
-    var accessToken=this.state.user.accessToken//拿到token
+  //获取七牛或国外图床签名
+  _getToken(body){
     var signatureUrl=config.api.base+config.api.signature//获取签名的地址
-    return request.post(signatureUrl,{
-      accessToken:accessToken,
-      type:'video',
-      cloud:'qiniu'
-    })
-      .catch((err)=>{
-        console.log(err)
-      })
+
+    body.accessToken=this.state.user.accessToken//拿到token
+
+    return request.post(signatureUrl,body)
   },
   //上传视频
   _upload(body){
@@ -674,6 +739,25 @@ var styles = StyleSheet.create({
     color:'#ee735c'
   },
   /*录制完音频预览区域 e */
+  /*上传音频按钮*/
+  uploadAudioBox:{
+    width:width,
+    height:60,
+    flexDirection:'row',
+    alignItems:'center',
+    justifyContent:'center'
+  },
+  uploadAudioText:{
+    width:width-20,
+    borderWidth:1,
+    borderColor:'#ee735c',
+    borderRadius:5,
+    padding:5,
+    textAlign:'center',
+    fontSize:30,
+    color:'#ee735c'
+  },
+  /*上传音频按钮*/
 });
 
 module.exports=Edit
