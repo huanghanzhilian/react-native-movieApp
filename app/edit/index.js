@@ -416,6 +416,8 @@ var Edit =React.createClass({
   //上传音频
   _uploadAudio(){
     var that=this
+    var tags='app,audio'
+    var folder='audio'
     that._getToken({
       type:'audio',
       timestamp:Date.now(),
@@ -439,7 +441,7 @@ var Edit =React.createClass({
         body.append('resource_type','video')
         body.append('file',{
           type:'video/mp4',
-          uri:that.state.audioPath,
+          uri:that.state.audioName,
           name:key
         })
 
