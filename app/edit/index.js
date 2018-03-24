@@ -54,6 +54,7 @@ var defaultState={
   muted:true,//是否静音
   resizeMode:'contain',
   repeat:false,
+  paused:false,//是否暂停
 
 
   //视频播放相关
@@ -76,9 +77,10 @@ var defaultState={
 
 
   //audio
+  audio:null,
   audioName:AudioUtils.DocumentDirectoryPath + '/gougou.aac',
   audioPlaying:false,//是否正在播放中
-  recordDone:false,//
+  recordDone:false,//录音是否完成
 
   audioUploading:false,//音频是否正在上传中
   audioUploaded:false,//音频是否上传成功
@@ -168,7 +170,7 @@ var Edit =React.createClass({
                   :null
                 }
                 {
-                  //如果正在录音
+                  //如果正在录音 或者正在播放中显示进度条
                   this.state.recording||this.state.audioPlaying
                   ?<View style={styles.progressTipBox}>
                     <ProgressViewIOS style={styles.progressBar} progressTintColor='#ee735c'
@@ -183,7 +185,7 @@ var Edit =React.createClass({
                 }
                 {
                   //录音完成后 可播放区域
-                  //recorDone 录制结束
+                  //recordDone 录制结束
                   this.state.recordDone
                   ?<View style={styles.previewBox}>
                     <Icon
@@ -240,7 +242,7 @@ var Edit =React.createClass({
             
           {
             //视频上传结束同时录音结束
-            this.state.videoUploaded&&this.state.recorDone
+            this.state.videoUploaded&&this.state.recordDone
             ?<View style={styles.uploadAudioBox}>
               {
                 //当音频正在上传中或者音频已经上传结束
@@ -281,8 +283,6 @@ var Edit =React.createClass({
   //录制音频播放
   _preview(){
     console.log('播放音频视频')
-    
-    
     //播放音频 
     setTimeout(() => {
       var sound = new Sound(this.state.audioName, '', (error) => {
@@ -304,11 +304,12 @@ var Edit =React.createClass({
             }
           });
         }
-        this.refs.videoPlayer.seek(0)//将视频从头开始播放
+        
         this.setState({
           videoProgress:0,
           audioPlaying:true
         })
+        this.refs.videoPlayer.seek(0)//将视频从头开始播放
         sound.play((success) => {
           if (success) {
             console.log('播放音频成功');
@@ -322,19 +323,16 @@ var Edit =React.createClass({
     
   },
   //倒计时结束  开始录音
-  async _record(){
+  _record(){
     this.setState({
       videoProgress:0,
       counting:false,
       recording:true,
-      recordDone:false
+      recordDone:false,
+      paused:false
     })
 
-    const filePath = await AudioRecorder.startRecording();
-    setTimeout(()=>{
-      console.log(filePath)
-    })
-    
+    const filePath = AudioRecorder.startRecording();    
     // AudioRecorder.startRecording()//开启录音
     //通过refs来引用到某一个组件
     this.refs.videoPlayer.seek(0)//将视频从头开始播放
@@ -371,7 +369,10 @@ var Edit =React.createClass({
       currentTime:Number(data.currentTime.toFixed(2)),
       videoProgress:precent
     }
+    //this.setState(newState)
 
+    //console.log(data)
+    //paused
     if(this.state.recording){
       this.setState(newState)
     }
@@ -381,17 +382,22 @@ var Edit =React.createClass({
 
 
   //播放结束
-  async _onEnd(){
+  _onEnd(){
+    //如果正在录音的结束
     if(this.state.recording){
       //AudioRecorder.stopRecording()//结束录音
-      const filePath = await AudioRecorder.stopRecording();
+      //const filePath =  AudioRecorder.stopRecording();
+      ///console.log()
       this.setState({
         videoProgress:1,
         recording:false,
         recordDone:true,
       })
     }
-    console.log('播放结束')
+    this.setState({
+      audioPlaying:false,
+    })
+    console.log('播放结束11')
   },
 
   //视频出错的时候
@@ -418,9 +424,10 @@ var Edit =React.createClass({
     var that=this
     var tags='app,audio'
     var folder='audio'
+    var timestamp=Date.now()
     that._getToken({
       type:'audio',
-      timestamp:Date.now(),
+      timestamp:timestamp,
       cloud:'cloudinary'
     })
     .catch((err)=>{
@@ -445,14 +452,14 @@ var Edit =React.createClass({
           name:key
         })
 
-        that._upload(body)
+        that._upload(body,'audio')
       }
     })
 
 
 
 
-  }
+  },
 
   //选着视频
   _pickVideo(){
@@ -488,7 +495,7 @@ var Edit =React.createClass({
               uri:uri,
               name:key
             })
-            that._upload(body)
+            that._upload(body,'video')
           }
         })
   
@@ -502,17 +509,22 @@ var Edit =React.createClass({
 
     return request.post(signatureUrl,body)
   },
-  //上传视频
-  _upload(body){
+  //上传视频 或音频
+  _upload(body,type){
     var that=this
-    this.setState({
-      videoUploadedProgress:0,
-      videoUploading:true,//正在上传
-      videoUploaded:false//
-    })
-
     var xhr=new XMLHttpRequest()
     var url=config.qiniu.upload
+
+    if(type=='audio'){
+      url=config.cloudinary.video
+    } 
+
+    var state={}
+    state[type+'UploadedProgress']=0 //上传进度
+    state[type+'Uploading']=true //正在上传
+    state[type+'Uploaded']=false //上传成功
+
+    this.setState(state)
     
     xhr.open('POST',url)
     //请求结束
@@ -536,30 +548,34 @@ var Edit =React.createClass({
         console.log(e)
       }
       console.log(response)
-      if(response&&response.key){
-        that.setState({
-          videoUploading:false,
-          videoUploaded:true,
-          video:response
-        })
-        var videoURL=config.api.base+config.api.video
-        var accessToken=that.state.user.accessToken
+      if(response){
+        var newState={}
+        newState[type]=response
+        newState[type+'Uploading']=false
+        newState[type+'Uploaded']=true
 
-        request.post(videoURL,{
-          accessToken:accessToken,
-          video:response
-        })
-        .catch((err)=>{
-          console.log(err)
-          AlertIOS.alert('视频同步出错，请重新上传！')
-        })
-        .then((data)=>{
-          console.log(data)
-          if(!data||!data.success){
-            AlertIOS.alert('视频同步出错，请重新上传！')
+        that.setState(newState)
+        if(type==='video'){
+          var updateURL=config.api.base+config.api[type]
+          var accessToken=that.state.user.accessToken
+          var updateBody={
+            accessToken:accessToken
           }
-        })
+          updateBody[type]=response
 
+          request.post(updateURL,updateBody)
+          .catch((err)=>{
+            console.log(err)
+            AlertIOS.alert('视频同步出错，请重新上传！')
+          })
+          .then((data)=>{
+            console.log(data)
+            if(!data||!data.success){
+              AlertIOS.alert('视频同步出错，请重新上传！')
+            }
+          })
+        }
+    
       }
     }
 
@@ -568,10 +584,9 @@ var Edit =React.createClass({
       xhr.upload.onprogress=(event)=>{
         if(event.lengthComputable){
           var percent=Number((event.loaded/event.total).toFixed(2))
-          console.log(percent)
-          that.setState({
-            videoUploadedProgress:percent
-          })
+          var progressState={}
+          progressState[type+'UploadedProgress']=percent
+          that.setState(progressState)
         }
       }
     }
@@ -734,11 +749,13 @@ var styles = StyleSheet.create({
   previewIcon:{
     marginRight:5,
     fontSize:20,
-    color:'#ee735c'
+    color:'#ee735c',
+    backgroundColor:'transparent'
   },
   previewText:{
     fontSize:20,
-    color:'#ee735c'
+    color:'#ee735c',
+    backgroundColor:'transparent'
   },
   /*录制完音频预览区域 e */
   /*上传音频按钮*/
