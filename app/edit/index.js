@@ -47,6 +47,9 @@ var videoOptions = {
   }
 };  
 var defaultState={
+  videoId:null,
+  audioId:null,
+
   previeVideo:null,//是否选择视频
 
   //video标签参数
@@ -555,26 +558,47 @@ var Edit =React.createClass({
         newState[type+'Uploaded']=true
 
         that.setState(newState)
-        if(type==='video'){
+
+
           var updateURL=config.api.base+config.api[type]
           var accessToken=that.state.user.accessToken
           var updateBody={
             accessToken:accessToken
           }
+
           updateBody[type]=response
+
+          if(type==='audio'){
+            updateBody.audioId=that.state.videoId
+          }
 
           request.post(updateURL,updateBody)
           .catch((err)=>{
             console.log(err)
-            AlertIOS.alert('视频同步出错，请重新上传！')
+            if(type==='video'){
+              AlertIOS.alert('视频同步出错，请重新上传！')
+            }else if(type==='audio'){
+              AlertIOS.alert('音频同步出错，请重新上传！')
+            }
+            
           })
           .then((data)=>{
             console.log(data)
-            if(!data||!data.success){
-              AlertIOS.alert('视频同步出错，请重新上传！')
+            if(data&&data.success){
+              var mediaState={}
+              mediaState[type+'Id']=data.data
+              that.setState(mediaState)
+            }else{
+              if(type==='video'){
+                AlertIOS.alert('视频同步出错，请重新上传！')
+              }else if(type==='audio'){
+                AlertIOS.alert('音频同步出错，请重新上传！')
+              }
             }
           })
-        }
+
+
+
     
       }
     }
