@@ -569,7 +569,7 @@ var Edit =React.createClass({
           updateBody[type]=response
 
           if(type==='audio'){
-            updateBody.audioId=that.state.videoId
+            updateBody.videoId=that.state.videoId
           }
 
           request.post(updateURL,updateBody)
